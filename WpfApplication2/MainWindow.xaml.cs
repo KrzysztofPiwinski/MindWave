@@ -7,6 +7,7 @@ using System;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Drawing;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Windows;
@@ -75,9 +76,12 @@ namespace WpfApplication2
 
         private void btnStart_Click(object sender, RoutedEventArgs e)
         {
-            StartCamera();
-            StartMindWaveConnection();
-            StartRecording();
+            if (!_recording)
+            {
+                StartCamera();
+                StartMindWaveConnection();
+                StartRecording();
+            }
         }
 
         private void StartMindWaveConnection()
@@ -121,74 +125,79 @@ namespace WpfApplication2
 
         public void StartRecording()
         {
-            var dialog = new SaveFileDialog();
-            dialog.FileName = "Video1";
-            dialog.DefaultExt = ".avi";
-            dialog.AddExtension = true;
-            var dialogResult = dialog.ShowDialog();
-            if (dialogResult != true)
+            try
             {
-                return;
-            }
+                var dialog = new SaveFileDialog();
+                dialog.FileName = "Video1";
+                dialog.DefaultExt = ".avi";
+                dialog.AddExtension = true;
+                var dialogResult = dialog.ShowDialog();
+                if (dialogResult != true)
+                {
+                    return;
+                }
 
-            _firstFrameTime = null;
-            _writer = new VideoFileWriter();
-            _writer.Open(dialog.FileName, (int)Math.Round(Image.Width, 0), (int)Math.Round(Image.Height, 0));
-            _recording = true;
+                _firstFrameTime = null;
+                _writer = new VideoFileWriter();
+                _writer.Open(dialog.FileName, (int)Math.Round(Image.Width, 0), (int)Math.Round(Image.Height, 0), 25, VideoCodec.MPEG4);
+                _recording = true;
+
+            }
+            catch (Exception ex)
+            {
+                File.WriteAllText("file.txt", ex.ToString());
+            }
         }
 
         private void video_NewFrame(object sender, NewFrameEventArgs eventArgs)
         {
-            try
+            Bitmap b = (Bitmap)eventArgs.Frame.Clone();
+            PointF firstLocation = new PointF(10f, 25f);
+            PointF secondLocation = new PointF(10f, 50f);
+
+            using (Graphics graphics = Graphics.FromImage(b))
             {
-                Bitmap b = (Bitmap)eventArgs.Frame.Clone();
-                PointF firstLocation = new PointF(10f, 25f);
-                PointF secondLocation = new PointF(10f, 50f);
-
-                using (Graphics graphics = Graphics.FromImage(b))
+                using (Font arialFont = new Font("Arial", 24))
                 {
-                    using (Font arialFont = new Font("Arial", 24))
-                    {
-                        float value = NativeThinkgear.TG_GetValue(connectionID, NativeThinkgear.DataType.TG_DATA_ATTENTION);
-                        graphics.DrawString("Stopień skupienia: " + value, arialFont, System.Drawing.Brushes.Blue, firstLocation);
+                    float value = NativeThinkgear.TG_GetValue(connectionID, NativeThinkgear.DataType.TG_DATA_ATTENTION);
+                    graphics.DrawString("Stopień skupienia: " + value, arialFont, System.Drawing.Brushes.Blue, firstLocation);
 
-                        float value2 = NativeThinkgear.TG_GetValue(connectionID, NativeThinkgear.DataType.TG_DATA_MEDITATION);
-                        graphics.DrawString("Stopień relaksu: " + value2, arialFont, System.Drawing.Brushes.Blue, secondLocation);
-                    }
+                    float value2 = NativeThinkgear.TG_GetValue(connectionID, NativeThinkgear.DataType.TG_DATA_MEDITATION);
+                    graphics.DrawString("Stopień relaksu: " + value2, arialFont, System.Drawing.Brushes.Blue, secondLocation);
                 }
-
-                if (_recording)
-                {
-                    if (_firstFrameTime != null)
-                    {
-                        _writer.WriteVideoFrame(b, DateTime.Now - _firstFrameTime.Value);
-                    }
-                    else
-                    {
-                        _writer.WriteVideoFrame(b);
-                        _firstFrameTime = DateTime.Now;
-                    }
-                }
-                using (var bitmap = (Bitmap)eventArgs.Frame.Clone())
-                {
-                    Image = b.ToBitmapImage();
-                }
-
-                Image.Freeze();
-                Dispatcher.BeginInvoke(new ThreadStart(delegate { video.Source = Image; }));
             }
-            catch (Exception exc)
+
+            if (_recording)
             {
-                MessageBox.Show("Exception:\n" + exc.Message, "Exception", MessageBoxButton.OK, MessageBoxImage.Error);
-                StopCamera();
-                StopRecording();
+                if (_firstFrameTime != null)
+                {
+                    _writer.WriteVideoFrame(b, DateTime.Now - _firstFrameTime.Value);
+                }
+                else
+                {
+                    _writer.WriteVideoFrame(b);
+                    _firstFrameTime = DateTime.Now;
+                }
             }
+            using (var bitmap = (Bitmap)eventArgs.Frame.Clone())
+            {
+                Image = b.ToBitmapImage();
+            }
+
+            Image.Freeze();
+            Dispatcher.BeginInvoke(new ThreadStart(delegate { video.Source = Image; }));
+
+            StopCamera();
+            StopRecording();
+            StopMindWaveConnection();
+
         }
 
         private void btnStop_Click(object sender, RoutedEventArgs e)
         {
             StopCamera();
             StopRecording();
+            StopMindWaveConnection();
         }
 
         private void StopCamera()
@@ -206,6 +215,7 @@ namespace WpfApplication2
         private void StopRecording()
         {
             _recording = false;
+            StopMindWaveConnection();
             _writer.Close();
             _writer.Dispose();
         }
