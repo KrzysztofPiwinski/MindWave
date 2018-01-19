@@ -20,13 +20,23 @@ namespace WpfApplication2
     /// </summary>
     public partial class MainWindow : Window
     {
+        /// <summary>
+        /// Available video devices
+        /// </summary>
         public ObservableCollection<FilterInfo> VideoDevices { get; set; }
 
+        /// <summary>
+        /// Selected video device
+        /// </summary>
         public FilterInfo CurrentDevice
         {
             get { return _currentDevice; }
             set { _currentDevice = value; this.OnPropertyChanged("CurrentDevice"); }
         }
+
+        /// <summary>
+        /// The main image
+        /// </summary>
         public BitmapImage Image
         {
             get { return _image; }
@@ -39,6 +49,7 @@ namespace WpfApplication2
         private VideoFileWriter _writer;
         private bool _recording;
         private DateTime? _firstFrameTime;
+        //MindWave connection id
         private int connectionID;
 
         public MainWindow()
@@ -56,6 +67,9 @@ namespace WpfApplication2
             StopRecording();
         }
 
+        /// <summary>
+        /// Initialize video devices list and current video device
+        /// </summary>
         private void FindAllVideoDevices()
         {
             VideoDevices = new ObservableCollection<FilterInfo>();
@@ -84,6 +98,9 @@ namespace WpfApplication2
             }
         }
 
+        /// <summary>
+        /// Tries to find the proper device and starts the MindWave connection.
+        /// </summary>
         private void StartMindWaveConnection()
         {
             var a = NativeThinkgear.TG_GetVersion();
@@ -91,6 +108,7 @@ namespace WpfApplication2
 
             int errCode;
 
+            //scan COM ports 1-9 for presence of the device
             for (int i = 1; i < 10; i++)
             {
                 errCode = NativeThinkgear.TG_Connect(connectionID,
@@ -109,6 +127,9 @@ namespace WpfApplication2
             errCode = NativeThinkgear.TG_EnableAutoRead(connectionID, 1);
         }
 
+        /// <summary>
+        /// Bind frame event handler and start the camera.
+        /// </summary>
         private void StartCamera()
         {
             if (CurrentDevice != null)
@@ -123,6 +144,9 @@ namespace WpfApplication2
             }
         }
 
+        /// <summary>
+        /// Prompt the user for a place to save the recorded video and setup file writer
+        /// </summary>
         public void StartRecording()
         {
             try
@@ -149,12 +173,18 @@ namespace WpfApplication2
             }
         }
 
+        /// <summary>
+        /// Handles the NewFrame event of the video control.
+        /// </summary>
+        /// <param name="sender">The source of the event.</param>
+        /// <param name="eventArgs">The <see cref="NewFrameEventArgs"/> instance containing the event data.</param>
         private void video_NewFrame(object sender, NewFrameEventArgs eventArgs)
         {
             Bitmap b = (Bitmap)eventArgs.Frame.Clone();
             PointF firstLocation = new PointF(10f, 25f);
             PointF secondLocation = new PointF(10f, 50f);
 
+            //put attention and relax levels read from the device onto the image
             using (Graphics graphics = Graphics.FromImage(b))
             {
                 using (Font arialFont = new Font("Arial", 24))
@@ -167,6 +197,7 @@ namespace WpfApplication2
                 }
             }
 
+            //write frame into the file
             if (_recording)
             {
                 if (_firstFrameTime != null)
@@ -179,11 +210,13 @@ namespace WpfApplication2
                     _firstFrameTime = DateTime.Now;
                 }
             }
+
             using (var bitmap = (Bitmap)eventArgs.Frame.Clone())
             {
                 Image = b.ToBitmapImage();
             }
 
+            //update image control
             Image.Freeze();
             Dispatcher.BeginInvoke(new ThreadStart(delegate { video.Source = Image; }));
 
@@ -200,6 +233,9 @@ namespace WpfApplication2
             StopMindWaveConnection();
         }
 
+        /// <summary>
+        /// Stops the camera, unbinds event and clears the image control
+        /// </summary>
         private void StopCamera()
         {
             if (_videoSource != null)
@@ -212,6 +248,9 @@ namespace WpfApplication2
             Dispatcher.BeginInvoke(new ThreadStart(delegate { video.Source = Image; }));
         }
 
+        /// <summary>
+        /// Stops recording and disposes writer
+        /// </summary>
         private void StopRecording()
         {
             _recording = false;
@@ -220,6 +259,9 @@ namespace WpfApplication2
             _writer.Dispose();
         }
 
+        /// <summary>
+        /// Disconnets the device.
+        /// </summary>
         private void StopMindWaveConnection()
         {
             NativeThinkgear.TG_Disconnect(connectionID);

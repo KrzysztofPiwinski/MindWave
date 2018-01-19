@@ -7,6 +7,11 @@ namespace WpfApplication2
 {
     static class BitmapHelpers
     {
+        /// <summary>
+        /// Create image source usable in XAML
+        /// </summary>
+        /// <param name="bitmap">The bitmap.</param>
+        /// <returns></returns>
         public static BitmapImage ToBitmapImage(this Bitmap bitmap)
         {
             BitmapImage bi = new BitmapImage();
